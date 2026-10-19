@@ -119,6 +119,8 @@ Panel {
     bar: root.bar
     text: root.serviceOn ? "󰖠" : "󱜷"
     active: root.live
+    // Faded like the other bar indicators until a call app uses the camera.
+    dimmed: !root.live && !root.opened
     tooltipText: "Camera Effects · " + root.statusText
     onPressed: function(b) {
       if (b === Qt.RightButton) root.run([root.serviceOn ? "stop" : "start"])

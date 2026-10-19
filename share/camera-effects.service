@@ -1,0 +1,12 @@
+[Unit]
+Description=Camera Effects virtual camera (Center Stage, Portrait, Studio Light)
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/camera-effects daemon
+Restart=on-failure
+RestartSec=3
+Nice=-2
+
+[Install]
+WantedBy=default.target

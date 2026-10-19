@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+"""camera-effects: Mac-style camera effects as a virtual camera.
+
+  camera-effects status [--json]     what the virtual camera is doing
+  camera-effects toggle <effect>     centerStage | portrait | studioLight | mirror
+  camera-effects set <key> <value>   e.g. set portraitStrength 0.8
+  camera-effects get [key]
+  camera-effects background <image|wallpaper|none>
+  camera-effects background upload   add an image to the library with a file chooser
+  camera-effects background choose   pick from the library and theme backgrounds
+  camera-effects preview             open or close a live preview window
+  camera-effects start|stop|restart|enable|disable
+  camera-effects doctor              check the install
+  camera-effects daemon              run the daemon in the foreground
+"""
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "lib"))
+
+from camfx import config  # noqa: E402
+
+UNIT = "camera-effects.service"
+EFFECTS = ("centerStage", "portrait", "studioLight", "mirror")
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+WALLPAPER = Path.home() / ".local/state/omarchy/current/background"
+
+
+def die(msg):
+    print(f"camera-effects: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def coerce(key, value):
+    kind = config.TYPES.get(key)
+    if kind is None:
+        die(f"unknown setting {key!r}; one of: {', '.join(config.TYPES)}")
+    if kind is bool:
+        if value.lower() in ("1", "true", "on", "yes"):
+            return True
+        if value.lower() in ("0", "false", "off", "no"):
+            return False
+        die(f"{key} takes on or off")
+    try:
+        v = kind(value)
+    except ValueError:
+        die(f"{key} takes a {kind.__name__}")
+    if key.endswith(("Strength", "Zoom")):
+        v = min(max(v, 0.0), 1.0)
+    return v
+
+
+def update(**changes):
+    cfg = config.load()
+    cfg.update(changes)
+    config.save(cfg)
+    return cfg
+
+
+def systemctl(*args):
+    return subprocess.call(["systemctl", "--user", *args])
+
+
+def status(as_json):
+    st = config.read_status()
+    active = subprocess.call(["systemctl", "--user", "--quiet", "is-active", UNIT]) == 0
+    if not active:
+        st = {"state": "stopped"}
+    st["config"] = config.load()
+    if as_json:
+        print(json.dumps(st))
+        return
+    state = st["state"]
+    line = state
+    if state == "active":
+        line += f" · {st.get('fps', 0)} fps · used by {', '.join(st.get('consumers') or ['?'])}"
+    elif state == "error":
+        line += f" · {st.get('error', '')}"
+    print(line)
+    for k in EFFECTS:
+        print(f"  {k:<12} {'on' if st['config'][k] else 'off'}")
+    bg = st["config"]["backgroundImage"]
+    print(f"  {'background':<12} {bg or 'none'}")
+
+
+def upload_background():
+    """Copy images picked in the desktop file chooser into the library and
+    use the first one."""
+    import shutil
+    r = subprocess.run(["omarchy-file-select", "--title", "Camera background", "--multiple",
+                        "--extensions", " ".join(e[1:] for e in IMAGE_EXTS)],
+                       capture_output=True, text=True)
+    picked = [Path(p) for p in r.stdout.splitlines() if p.strip()]
+    if not picked:
+        sys.exit(1)
+    config.BACKGROUNDS_DIR.mkdir(parents=True, exist_ok=True)
+    first = None
+    for src in picked:
+        dst = config.BACKGROUNDS_DIR / src.name
+        if src.resolve() != dst.resolve():
+            shutil.copyfile(src, dst)
+        first = first or dst
+    update(backgroundImage=str(first))
+    print(first)
+
+
+def choose_background():
+    """Omarchy's image grid over the library and the theme's backgrounds."""
+    config.BACKGROUNDS_DIR.mkdir(parents=True, exist_ok=True)
+    dirs = [str(config.BACKGROUNDS_DIR)]
+    theme = Path.home() / ".local/state/omarchy/current/theme/backgrounds"
+    if theme.is_dir():
+        dirs.append(str(theme.resolve()))
+    cmd = ["omarchy-menu-images", "--filterable"]
+    current = config.load()["backgroundImage"]
+    if current:
+        cmd += ["--selected", current]
+    r = subprocess.run(cmd + dirs, capture_output=True, text=True)
+    path = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
+    if not path or not Path(path).is_file():
+        sys.exit(1)
+    update(backgroundImage=str(Path(path).resolve()))
+    print(path)
+
+
+PREVIEW_TITLE = "Camera Effects Preview"
+
+
+def preview():
+    """Toggle an mpv window on the virtual camera. Opening it is what turns
+    the real camera on, exactly as a call app would."""
+    if subprocess.call(["pkill", "-f", "--", f"--title={PREVIEW_TITLE}"]) == 0:
+        return
+    if not Path(config.VIRTUAL_DEVICE).exists():
+        die(f"{config.VIRTUAL_DEVICE} missing; run install.sh")
+    cfg = config.load()
+    subprocess.Popen(
+        ["mpv", f"--title={PREVIEW_TITLE}", "--profile=low-latency", "--untimed",
+         "--no-cache", "--osc=no", "--keep-open=no", "--really-quiet",
+         # Self-view reads as a mirror, as on a Mac; the call gets it unflipped.
+         "--vf=hflip",
+         "--demuxer-lavf-format=video4linux2",
+         f"--demuxer-lavf-o=video_size={cfg['width']}x{cfg['height']},input_format=yuv420p",
+         f"av://v4l2:{config.VIRTUAL_DEVICE}"],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True)
+
+
+def doctor():
+    ok = True
+
+    def check(cond, good, bad):
+        nonlocal ok
+        print(("  ok   " if cond else "  FAIL ") + (good if cond else bad))
+        ok &= bool(cond)
+
+    check(Path(config.VIRTUAL_DEVICE).exists(), f"virtual camera {config.VIRTUAL_DEVICE}",
+          f"{config.VIRTUAL_DEVICE} missing: v4l2loopback not loaded (run install.sh)")
+    check((config.VENV_DIR / "bin/python").exists(), "python venv", "venv missing (run install.sh)")
+    for m in ("face_detection_yunet_2023mar.onnx", "rvm_mobilenetv3_fp32.onnx"):
+        check((config.MODELS_DIR / m).exists(), f"model {m}", f"model {m} missing (run install.sh)")
+    check(subprocess.call(["systemctl", "--user", "--quiet", "is-active", UNIT]) == 0,
+          "service running", f"service not running (camera-effects start)")
+    sys.exit(0 if ok else 1)
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return
+    cmd, args = argv[0], argv[1:]
+    if cmd == "status":
+        status("--json" in args)
+    elif cmd == "toggle":
+        if len(args) != 1 or args[0] not in EFFECTS:
+            die(f"toggle takes one of: {', '.join(EFFECTS)}")
+        cfg = update(**{args[0]: not config.load()[args[0]]})
+        print(f"{args[0]} {'on' if cfg[args[0]] else 'off'}")
+    elif cmd == "set":
+        if len(args) != 2:
+            die("set takes <key> <value>")
+        update(**{args[0]: coerce(args[0], args[1])})
+    elif cmd == "get":
+        cfg = config.load()
+        print(json.dumps(cfg[args[0]] if args else cfg, indent=None if args else 2))
+    elif cmd == "background" and args[:1] == ["upload"]:
+        upload_background()
+    elif cmd == "background" and args[:1] == ["choose"]:
+        choose_background()
+    elif cmd == "background":
+        if len(args) != 1:
+            die("background takes an image path, wallpaper, upload, choose or none")
+        src = WALLPAPER if args[0] == "wallpaper" else Path(args[0]).expanduser()
+        path = "" if args[0] == "none" else str(src.resolve())
+        if path and not Path(path).is_file():
+            die(f"no such image: {path}")
+        update(backgroundImage=path)
+    elif cmd in ("start", "stop", "restart"):
+        sys.exit(systemctl(cmd, UNIT))
+    elif cmd == "enable":
+        sys.exit(systemctl("enable", "--now", UNIT))
+    elif cmd == "disable":
+        sys.exit(systemctl("disable", "--now", UNIT))
+    elif cmd == "preview":
+        preview()
+    elif cmd == "doctor":
+        doctor()
+    elif cmd == "daemon":
+        py = config.VENV_DIR / "bin/python"
+        env = dict(os.environ, PYTHONPATH=str(ROOT / "lib"))
+        os.execve(str(py), [str(py), "-m", "camfx.daemon"], env)
+    else:
+        die(f"unknown command {cmd!r}; see camera-effects --help")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

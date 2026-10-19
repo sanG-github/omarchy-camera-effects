@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "sang.camera-effects",
+  "name": "Camera Effects",
+  "version": "0.1.0",
+  "author": "Sang Huynh Thanh",
+  "license": "MIT",
+  "description": "Mac-style camera effects as a virtual camera: Center Stage framing, Portrait background blur, Studio Light, and background replacement.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Camera Effects",
+    "description": "Toggle Center Stage, Portrait, Studio Light and background replacement for the virtual camera.",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {},
+    "schema": []
+  }
+}

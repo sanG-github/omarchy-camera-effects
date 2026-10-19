@@ -3,6 +3,8 @@
 Mac-style camera effects for Omarchy, served as a virtual camera that any app
 can use: Meet, Zoom, Slack, Teams, OBS.
 
+<img src="preview.png" alt="Camera Effects panel" width="350" align="right">
+
 - **Center Stage**: pans and zooms to keep you in frame. It frames from the
   full 4:3 sensor, and the zoom level is adjustable.
 - **Portrait**: background blur, with adjustable strength.
@@ -19,9 +21,11 @@ on the CPU at about 26 fps with every effect on.
 ## Install
 
 ```sh
-git clone https://github.com/sanG-github/omarchy-camera-effects ~/Work/omarchy-camera-effects
-~/Work/omarchy-camera-effects/install.sh
+omarchy plugin add https://github.com/sanG-github/omarchy-camera-effects.git --enable
 ```
+
+Then open the camera icon in the bar and click **Set up the virtual camera**,
+or run `~/.config/omarchy/plugins/sang.camera-effects/install.sh`.
 
 The installer:
 
@@ -32,6 +36,16 @@ The installer:
 - adds the bar widget
 
 In your call app, pick **FaceTime HD Camera (Effects)** as the camera.
+
+## Uninstall
+
+```sh
+~/.config/omarchy/plugins/sang.camera-effects/uninstall.sh   # --purge also removes settings and backgrounds
+omarchy plugin remove sang.camera-effects
+```
+
+The uninstaller stops and removes the service, the venv and the models, and
+the module config. It leaves the `v4l2loopback-dkms` package installed.
 
 ## Use
 

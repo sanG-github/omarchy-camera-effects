@@ -35,7 +35,10 @@ systemctl --user restart camera-effects.service
 echo "==> Bar widget"
 plugins="$HOME/.config/omarchy/plugins"
 mkdir -p "$plugins"
-[[ -e "$plugins/$plugin_id" ]] || ln -s "$here" "$plugins/$plugin_id"
+# Installed with `omarchy plugin add`, the checkout already is the plugin.
+if [[ "$(realpath "$here")" != "$(realpath -m "$plugins/$plugin_id")" ]]; then
+  [[ -e "$plugins/$plugin_id" ]] || ln -s "$here" "$plugins/$plugin_id"
+fi
 if command -v omarchy >/dev/null; then
   omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
   omarchy plugin enable "$plugin_id" >/dev/null 2>&1 || true

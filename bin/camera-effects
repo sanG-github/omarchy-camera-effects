@@ -11,6 +11,8 @@
   camera-effects preview             open or close a live preview window
   camera-effects start|stop|restart|enable|disable
   camera-effects doctor              check the install
+  camera-effects setup               install or repair (runs install.sh)
+  camera-effects uninstall [--purge] remove everything but the plugin itself
   camera-effects daemon              run the daemon in the foreground
 """
 
@@ -72,6 +74,7 @@ def status(as_json):
     if not active:
         st = {"state": "stopped"}
     st["config"] = config.load()
+    st["installed"] = installed()
     if as_json:
         print(json.dumps(st))
         return
@@ -151,6 +154,12 @@ def preview():
         start_new_session=True)
 
 
+def installed():
+    return (Path(config.VIRTUAL_DEVICE).exists()
+            and (config.VENV_DIR / "bin/python").exists()
+            and (config.MODELS_DIR / "rvm_mobilenetv3_fp32.onnx").exists())
+
+
 def doctor():
     ok = True
 
@@ -210,6 +219,9 @@ def main(argv):
         preview()
     elif cmd == "doctor":
         doctor()
+    elif cmd in ("setup", "uninstall"):
+        script = ROOT / ("install.sh" if cmd == "setup" else "uninstall.sh")
+        os.execv(str(script), [str(script), *args])
     elif cmd == "daemon":
         py = config.VENV_DIR / "bin/python"
         env = dict(os.environ, PYTHONPATH=str(ROOT / "lib"))

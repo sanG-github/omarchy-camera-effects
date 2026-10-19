@@ -20,6 +20,8 @@ Panel {
   readonly property string camState: status.state || "stopped"
   readonly property bool serviceOn: camState !== "stopped"
   readonly property bool live: camState === "active"
+  // A fresh `omarchy plugin add` has the widget but not the runtime yet.
+  readonly property bool needsSetup: status.installed === false
   // The preview is an mpv window on the virtual camera, so it shows up as a user.
   readonly property bool previewing: live && (status.consumers || []).indexOf("mpv") >= 0
 
@@ -29,6 +31,7 @@ Panel {
   property bool cursorActive: false
 
   readonly property string statusText: {
+    if (needsSetup) return "Setup needed"
     if (camState === "active") {
       var who = (status.consumers || []).join(", ")
       return "Live · " + (status.fps || 0) + " fps" + (who ? " · " + who : "")
@@ -60,7 +63,11 @@ Panel {
   }
 
   function activate(row) {
-    if (row === "service") run([root.serviceOn ? "stop" : "start"])
+    if (row === "service" && root.needsSetup) {
+      Quickshell.execDetached(["omarchy-launch-floating-terminal-with-presentation", root.cli + " setup"])
+      root.close()
+    }
+    else if (row === "service") run([root.serviceOn ? "stop" : "start"])
     else if (row === "preview") { run(["preview"]); root.close() }
     else if (row === "bgNone") { setLocal("backgroundImage", ""); run(["background", "none"]) }
     else if (row === "bgChoose") { run(["background", "choose"]); root.close() }
@@ -197,8 +204,10 @@ Panel {
 
         EffectToggle {
           row: "service"
-          label: "Virtual camera"
-          description: "Choose \"FaceTime HD Camera (Effects)\" in your call app."
+          label: root.needsSetup ? "Set up the virtual camera" : "Virtual camera"
+          description: root.needsSetup
+            ? "Installs the camera module, Python runtime and models. Asks for your password."
+            : "Choose \"FaceTime HD Camera (Effects)\" in your call app."
           checked: root.serviceOn
         }
 

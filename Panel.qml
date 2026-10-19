@@ -10,8 +10,8 @@ import qs.Ui
 // through the same CLI, so the terminal and the bar never disagree.
 Panel {
   id: root
-  moduleName: "sang.camera-effects"
-  ipcTarget: "sang.camera-effects"
+  moduleName: "camera-effects"
+  ipcTarget: "camera-effects"
 
   readonly property string cli: String(Qt.resolvedUrl("bin/camera-effects")).replace(/^file:\/\//, "")
 

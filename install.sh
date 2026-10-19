@@ -5,7 +5,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
 data="${XDG_DATA_HOME:-$HOME/.local/share}/camera-effects"
-plugin_id="sang.camera-effects"
+plugin_id="camera-effects"
 
 if [[ ! -e /dev/video42 ]] || ! grep -q '^v4l2loopback' /etc/modules-load.d/camera-effects.conf 2>/dev/null; then
   echo "==> Installing the v4l2loopback module (needs root)"

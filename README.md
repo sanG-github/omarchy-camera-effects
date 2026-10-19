@@ -25,7 +25,7 @@ omarchy plugin add https://github.com/sanG-github/omarchy-camera-effects.git --e
 ```
 
 Then open the camera icon in the bar and click **Set up the virtual camera**,
-or run `~/.config/omarchy/plugins/sang.camera-effects/install.sh`.
+or run `~/.config/omarchy/plugins/camera-effects/install.sh`.
 
 The installer:
 
@@ -40,8 +40,8 @@ In your call app, pick **FaceTime HD Camera (Effects)** as the camera.
 ## Uninstall
 
 ```sh
-~/.config/omarchy/plugins/sang.camera-effects/uninstall.sh   # --purge also removes settings and backgrounds
-omarchy plugin remove sang.camera-effects
+~/.config/omarchy/plugins/camera-effects/uninstall.sh   # --purge also removes settings and backgrounds
+omarchy plugin remove camera-effects
 ```
 
 The uninstaller stops and removes the service, the venv and the models, and

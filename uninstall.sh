@@ -24,4 +24,4 @@ if [[ -e /etc/modprobe.d/camera-effects.conf || -e /etc/modules-load.d/camera-ef
 fi
 
 echo "Done. The v4l2loopback-dkms package is left installed; remove it with: sudo pacman -Rns v4l2loopback-dkms"
-echo "Remove the bar widget with: omarchy plugin remove sang.camera-effects"
+echo "Remove the bar widget with: omarchy plugin remove camera-effects"
